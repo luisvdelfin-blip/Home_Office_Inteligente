@@ -27,7 +27,6 @@ const App = () => (
               <Route path="/reviews/:slug" element={<BlogPost />} />
               <Route path="/setup-guides" element={<SetupGuides />} />
               <Route path="/politica-de-privacidade" element={<PrivacyPolicy />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Layout>

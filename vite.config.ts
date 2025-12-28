@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   base: "/",
   
   build: {
@@ -11,7 +11,11 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false,
     minify: "esbuild",
     target: "es2015",
+    emptyOutDir: true,
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html")
+      },
       output: {
         manualChunks: {
           vendor: ["react", "react-dom"],
@@ -20,43 +24,29 @@ export default defineConfig(({ mode }) => ({
         },
       },
     },
-    // Ensure assets are properly handled
-    assetsInlineLimit: 4096,
   },
 
-  // Development server config
   server: {
     host: "0.0.0.0",
     port: 8080,
     strictPort: true,
   },
 
-  // Preview server config (for testing production builds)
   preview: {
     host: "0.0.0.0",
     port: 4173,
     strictPort: true,
   },
 
-  // Plugins
-  plugins: [
-    react(),
-  ],
+  plugins: [react()],
 
-  // Path resolution
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
 
-  // Define environment variables
-  define: {
-    __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
-  },
-
-  // Ensure proper CSS handling
   css: {
     postcss: "./postcss.config.js",
   },
-}));
+});
