@@ -38,12 +38,12 @@ RUN ls -la /usr/share/nginx/html/ && \
     test -f /usr/share/nginx/html/index.html && \
     echo "Production files verified"
 
-# Expose port
-EXPOSE 80
+# Expose port 3000 for Coolify
+EXPOSE 3000
 
-# Health check
+# Health check on port 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
-# Start nginx
+# Start nginx on port 3000
 CMD ["nginx", "-g", "daemon off;"]
