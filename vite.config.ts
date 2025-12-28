@@ -1,15 +1,16 @@
 import { defineConfig } from "vite";
-import dyadComponentTagger from "@dyad-sh/react-vite-component-tagger";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig(({ mode }) => ({
   base: "/",
+  
   build: {
     outDir: "dist",
     assetsDir: "assets",
-    sourcemap: mode === "development",
-    minify: mode === "production" ? "esbuild" : false,
+    sourcemap: false,
+    minify: "esbuild",
+    target: "es2015",
     rollupOptions: {
       output: {
         manualChunks: {
@@ -19,24 +20,43 @@ export default defineConfig(({ mode }) => ({
         },
       },
     },
+    // Ensure assets are properly handled
+    assetsInlineLimit: 4096,
   },
+
+  // Development server config
   server: {
-    host: "::",
+    host: "0.0.0.0",
     port: 8080,
     strictPort: true,
   },
+
+  // Preview server config (for testing production builds)
   preview: {
-    host: "::",
+    host: "0.0.0.0",
     port: 4173,
     strictPort: true,
   },
+
+  // Plugins
   plugins: [
-    mode === "development" && dyadComponentTagger(),
     react(),
-  ].filter(Boolean),
+  ],
+
+  // Path resolution
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+
+  // Define environment variables
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+  },
+
+  // Ensure proper CSS handling
+  css: {
+    postcss: "./postcss.config.js",
   },
 }));
