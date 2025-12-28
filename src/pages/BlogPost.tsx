@@ -2,25 +2,19 @@ import { useParams, Navigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import RelatedProducts from '@/components/RelatedProducts';
 import SEO from '@/components/SEO';
-import { mockPosts, mockProducts } from '@/data/mockData';
+import { usePost } from '@/hooks/usePosts';
+import { useProducts } from '@/hooks/useProducts';
 import { Link } from 'react-router-dom';
 
 const BlogPost = () => {
   const { slug } = useParams<{ slug: string }>();
+  const { post, loading, error } = usePost(slug || '');
+  const { products } = useProducts();
   
-  // Find the post by slug
-  const post = mockPosts.find(p => p.slug === slug && p.status === 'published');
-  
-  if (!post) {
-    return <Navigate to="/404" replace />;
-  }
-
-  // Find the related product
-  const relatedProduct = mockProducts.find(p => p.id === post.product_id);
-
   const formatDate = (dateString: string) => {
     return new Intl.DateTimeFormat('pt-BR', {
       year: 'numeric',
@@ -29,7 +23,44 @@ const BlogPost = () => {
     }).format(new Date(dateString));
   };
 
-  const estimatedReadTime = Math.ceil(post.content.split(' ').length / 200);
+  const estimatedReadTime = (content: string) => {
+    return Math.ceil(content.split(' ').length / 200);
+  };
+
+  // Find the related product
+  const relatedProduct = products.find(p => p.id === post?.product_id);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black pt-16">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <Skeleton className="h-10 w-32 mb-8 bg-zinc-800" />
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="lg:col-span-3">
+              <Skeleton className="aspect-video w-full mb-8 bg-zinc-800" />
+              <div className="space-y-4 mb-8">
+                <Skeleton className="h-4 w-48 bg-zinc-800" />
+                <Skeleton className="h-12 w-full bg-zinc-800" />
+                <Skeleton className="h-32 w-full bg-zinc-800" />
+              </div>
+              <div className="space-y-4">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <Skeleton key={i} className="h-4 w-full bg-zinc-800" />
+                ))}
+              </div>
+            </div>
+            <div className="lg:col-span-1">
+              <Skeleton className="h-96 w-full bg-zinc-800" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !post) {
+    return <Navigate to="/404" replace />;
+  }
 
   // Generate description from content
   const description = post.content.substring(0, 160).replace(/[#*]/g, '') + '...';
@@ -64,7 +95,7 @@ const BlogPost = () => {
               {/* Hero Image */}
               <div className="aspect-video relative overflow-hidden rounded-xl mb-8">
                 <img
-                  src={post.cover_image}
+                  src={post.cover_image || '/placeholder.svg'}
                   alt={post.title}
                   className="w-full h-full object-cover"
                 />
@@ -80,7 +111,7 @@ const BlogPost = () => {
                   </div>
                   <div className="flex items-center text-zinc-400 text-sm">
                     <Clock size={16} className="mr-2" />
-                    {estimatedReadTime} min de leitura
+                    {estimatedReadTime(post.content)} min de leitura
                   </div>
                 </div>
 
@@ -166,7 +197,7 @@ const BlogPost = () => {
             {/* Sidebar */}
             <div className="lg:col-span-1">
               <RelatedProducts 
-                products={mockProducts} 
+                products={products} 
                 currentProductId={post.product_id}
               />
             </div>
