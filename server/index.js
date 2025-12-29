@@ -2,17 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { dbOperations } from './database.js';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.API_PORT || 3001;
 
 // Generate API key if not provided
 const API_KEY = process.env.WEBHOOK_API_KEY || crypto.randomBytes(32).toString('hex');
@@ -34,9 +29,6 @@ const authenticateApiKey = (req, res, next) => {
   
   next();
 };
-
-// API ROUTES
-// ==========
 
 // Webhook endpoint to receive posts from n8n
 app.post('/api/receive-post', authenticateApiKey, async (req, res) => {
@@ -183,33 +175,13 @@ app.get('/api/webhook-info', (req, res) => {
   });
 });
 
-// STATIC FILE SERVING
-// ===================
-
-// Serve static files from the dist directory
-const distPath = path.join(__dirname, '..', 'dist');
-app.use(express.static(distPath));
-
-// Handle React Router - serve index.html for all non-API routes
-app.get('*', (req, res) => {
-  // Skip API routes
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
-  }
-  
-  // Serve index.html for all other routes (React Router will handle routing)
-  res.sendFile(path.join(distPath, 'index.html'));
-});
-
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Full-stack server running on port ${PORT}`);
-  console.log(`🌐 Website: http://localhost:${PORT}`);
+  console.log(`🚀 API Server running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
   console.log(`📡 Webhook endpoint: http://localhost:${PORT}/api/receive-post`);
   console.log(`🔑 API Key: ${API_KEY}`);
   console.log(`ℹ️  Webhook info: http://localhost:${PORT}/api/webhook-info`);
-  console.log(`📁 Serving static files from: ${distPath}`);
 });
 
 export default app;
