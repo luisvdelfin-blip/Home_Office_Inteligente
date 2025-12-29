@@ -1,119 +1,83 @@
 import express from 'express';
 import cors from 'cors';
-import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
+import { dbOperations } from './database.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
 
+// Generate API key if not provided
+const API_KEY = process.env.WEBHOOK_API_KEY || crypto.randomBytes(32).toString('hex');
+
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-// Database connection - prioritize DATABASE_URL if available
-let dbConfig;
-
-if (process.env.DATABASE_URL) {
-  // Parse DATABASE_URL format: mysql://user:password@host:port/database
-  const url = new URL(process.env.DATABASE_URL);
-  dbConfig = {
-    host: url.hostname,
-    user: url.username,
-    password: url.password,
-    database: url.pathname.slice(1), // Remove leading slash
-    port: url.port || 3306,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-  };
-} else {
-  // Fallback to individual environment variables
-  dbConfig = {
-    host: process.env.DB_HOST || '82.29.60.57',
-    user: process.env.DB_USER || 'mysql',
-    password: process.env.DB_PASSWORD || 'FdUvWfWC5pdSBx6r51fbcO5NfHoVTU1RLJTwS4K4dw32XPh7UEEys1vaskQ6SZHy',
-    database: process.env.DB_NAME || 'default',
-    port: process.env.DB_PORT || 3306,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-  };
-}
-
-const pool = mysql.createPool(dbConfig);
-
-// Test database connection
-async function testConnection() {
-  try {
-    const connection = await pool.getConnection();
-    console.log('✅ Database connected successfully');
-    console.log(`📊 Connected to: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
-    connection.release();
-  } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
-    console.error('🔧 Connection config:', {
-      host: dbConfig.host,
-      user: dbConfig.user,
-      database: dbConfig.database,
-      port: dbConfig.port
+// API Key authentication middleware
+const authenticateApiKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  if (!apiKey || apiKey !== API_KEY) {
+    return res.status(401).json({ 
+      error: 'Unauthorized', 
+      message: 'Valid x-api-key header required' 
     });
   }
-}
+  
+  next();
+};
 
-// API Routes
-
-// Get all products with content (using new schema)
-app.get('/api/products', async (req, res) => {
+// Webhook endpoint to receive posts from n8n
+app.post('/api/receive-post', authenticateApiKey, async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
-      SELECT 
-        sku_id as id,
-        producto_nombre as name,
-        url_afiliado as affiliate_url,
-        imagen_url as image_url,
-        precio_actual as price,
-        plataforma as category,
-        posteado_en_telegram as created_at
-      FROM phiai_afiliados 
-      WHERE producto_nombre IS NOT NULL 
-        AND producto_nombre != ''
-        AND url_afiliado IS NOT NULL 
-        AND url_afiliado != ''
-      ORDER BY posteado_en_telegram DESC
-    `);
+    const { id, title, content, price, image_url, affiliate_url } = req.body;
+    
+    // Validate required fields
+    if (!id || !title || !content) {
+      return res.status(400).json({ 
+        error: 'Missing required fields', 
+        required: ['id', 'title', 'content'] 
+      });
+    }
 
-    console.log(`📦 Fetched ${rows.length} products from database`);
-    res.json(rows);
+    console.log(`📝 Received post: ${title}`);
+    
+    // Save to local database
+    const result = dbOperations.upsertPost({
+      id,
+      title,
+      content,
+      price: price || 0,
+      image_url: image_url || null,
+      affiliate_url: affiliate_url || null
+    });
+
+    console.log(`✅ Post saved successfully: ${title}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Post received and saved',
+      id: id,
+      title: title
+    });
   } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({ error: 'Failed to fetch products', details: error.message });
+    console.error('Error saving post:', error);
+    res.status(500).json({ 
+      error: 'Failed to save post', 
+      details: error.message 
+    });
   }
 });
 
-// Get all posts (treating products as posts for now)
+// Get all posts
 app.get('/api/posts', async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
-      SELECT 
-        sku_id as id,
-        producto_nombre as title,
-        LOWER(REPLACE(REPLACE(producto_nombre, ' ', '-'), 'ñ', 'n')) as slug,
-        producto_nombre as content,
-        imagen_url as cover_image,
-        'published' as status,
-        sku_id as product_id,
-        posteado_en_telegram as created_at,
-        posteado_en_telegram as updated_at
-      FROM phiai_afiliados 
-      WHERE producto_nombre IS NOT NULL 
-        AND producto_nombre != ''
-      ORDER BY posteado_en_telegram DESC
-    `);
-
-    console.log(`📝 Fetched ${rows.length} posts from database`);
-    res.json(rows);
+    const posts = dbOperations.getAllPosts();
+    console.log(`📝 Fetched ${posts.length} posts from local database`);
+    res.json(posts);
   } catch (error) {
     console.error('Error fetching posts:', error);
     res.status(500).json({ error: 'Failed to fetch posts', details: error.message });
@@ -124,103 +88,100 @@ app.get('/api/posts', async (req, res) => {
 app.get('/api/posts/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
-    
-    const [rows] = await pool.execute(`
-      SELECT 
-        sku_id as id,
-        producto_nombre as title,
-        LOWER(REPLACE(REPLACE(producto_nombre, ' ', '-'), 'ñ', 'n')) as slug,
-        producto_nombre as content,
-        imagen_url as cover_image,
-        'published' as status,
-        sku_id as product_id,
-        posteado_en_telegram as created_at,
-        posteado_en_telegram as updated_at
-      FROM phiai_afiliados 
-      WHERE LOWER(REPLACE(REPLACE(producto_nombre, ' ', '-'), 'ñ', 'n')) = ?
-        AND producto_nombre IS NOT NULL 
-        AND producto_nombre != ''
-      LIMIT 1
-    `, [slug]);
+    const post = dbOperations.getPostBySlug(slug);
 
-    if (rows.length === 0) {
+    if (!post) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    console.log(`📄 Fetched post: ${rows[0].title}`);
-    res.json(rows[0]);
+    console.log(`📄 Fetched post: ${post.title}`);
+    res.json(post);
   } catch (error) {
     console.error('Error fetching post:', error);
     res.status(500).json({ error: 'Failed to fetch post', details: error.message });
   }
 });
 
+// Get all products
+app.get('/api/products', async (req, res) => {
+  try {
+    const products = dbOperations.getAllProducts();
+    console.log(`📦 Fetched ${products.length} products from local database`);
+    res.json(products);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ error: 'Failed to fetch products', details: error.message });
+  }
+});
+
 // Health check
 app.get('/api/health', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT COUNT(*) as count FROM phiai_afiliados');
+    const stats = dbOperations.getStats();
     res.json({ 
       status: 'healthy', 
-      database: 'connected',
-      records: rows[0].count,
-      config: {
-        host: dbConfig.host,
-        database: dbConfig.database,
-        port: dbConfig.port
-      }
+      database: 'local-sqlite',
+      records: stats
     });
   } catch (error) {
-    console.error('Health check failed:', error);
     res.status(500).json({ 
       status: 'unhealthy', 
-      database: 'disconnected',
-      error: error.message,
-      config: {
-        host: dbConfig.host,
-        database: dbConfig.database,
-        port: dbConfig.port
-      }
+      database: 'local-sqlite',
+      error: error.message 
     });
   }
 });
 
-// Debug endpoint to see raw data
+// Debug endpoint
 app.get('/api/debug', async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
-      SELECT * FROM phiai_afiliados 
-      LIMIT 5
-    `);
+    const posts = dbOperations.getAllPosts().slice(0, 5);
+    const products = dbOperations.getAllProducts().slice(0, 5);
+    const stats = dbOperations.getStats();
     
     res.json({
-      message: 'Raw database data (first 5 records)',
-      data: rows,
-      config: {
-        host: dbConfig.host,
-        database: dbConfig.database,
-        port: dbConfig.port
-      }
+      message: 'Local database debug info',
+      stats,
+      sample_posts: posts,
+      sample_products: products,
+      api_key_configured: !!process.env.WEBHOOK_API_KEY
     });
   } catch (error) {
-    console.error('Debug query failed:', error);
     res.status(500).json({ 
       error: 'Debug query failed', 
-      details: error.message,
-      config: {
-        host: dbConfig.host,
-        database: dbConfig.database,
-        port: dbConfig.port
-      }
+      details: error.message 
     });
   }
+});
+
+// API Key info endpoint (for setup)
+app.get('/api/webhook-info', (req, res) => {
+  res.json({
+    endpoint: '/api/receive-post',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': 'YOUR_API_KEY'
+    },
+    sample_payload: {
+      id: 'unique-product-id',
+      title: 'Product Name',
+      content: 'Full review content in markdown',
+      price: 299.99,
+      image_url: 'https://example.com/image.jpg',
+      affiliate_url: 'https://affiliate-link.com'
+    },
+    api_key: API_KEY
+  });
 });
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API Server running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`🐛 Debug endpoint: http://localhost:${PORT}/api/debug`);
-  testConnection();
+  console.log(`📡 Webhook endpoint: http://localhost:${PORT}/api/receive-post`);
+  console.log(`🔑 API Key: ${API_KEY}`);
+  console.log(`ℹ️  Webhook info: http://localhost:${PORT}/api/webhook-info`);
 });
 
 export default app;

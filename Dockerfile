@@ -3,6 +3,9 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
 # Copy package files
 COPY package*.json ./
 
@@ -26,6 +29,9 @@ FROM node:18-alpine AS production
 
 WORKDIR /app
 
+# Install runtime dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
 # Copy package files for production dependencies
 COPY package*.json ./
 
@@ -37,6 +43,9 @@ COPY --from=builder /app/dist ./dist
 
 # Copy server files
 COPY server ./server
+
+# Create data directory for SQLite database
+RUN mkdir -p ./data
 
 # Copy environment template
 COPY .env.example ./.env.example
