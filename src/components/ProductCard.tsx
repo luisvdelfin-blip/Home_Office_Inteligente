@@ -2,20 +2,23 @@ import { ExternalLink, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Product } from '@/types';
+import { DatabaseProduct } from '@/services/api';
 import { Link } from 'react-router-dom';
 
 interface ProductCardProps {
-  product: Product;
+  product: DatabaseProduct;
   hasReview?: boolean;
 }
 
 const ProductCard = ({ product, hasReview = false }: ProductCardProps) => {
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number | string) => {
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    if (isNaN(numPrice)) return 'Preço não disponível';
+    
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(price);
+    }).format(numPrice);
   };
 
   const getSlugFromProduct = (productName: string) => {
@@ -29,20 +32,29 @@ const ProductCard = ({ product, hasReview = false }: ProductCardProps) => {
       .trim();
   };
 
+  // Handle missing or placeholder images
+  const imageUrl = product.image_url && product.image_url !== '' 
+    ? product.image_url 
+    : '/placeholder.svg';
+
   return (
     <Card className="group bg-zinc-900/50 border-zinc-800 hover:border-red-500/50 transition-all duration-300 overflow-hidden">
       <div className="aspect-square relative overflow-hidden">
         <img
-          src={product.image_url}
+          src={imageUrl}
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.src = '/placeholder.svg';
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         <Badge 
           variant="secondary" 
           className="absolute top-3 left-3 bg-red-500/90 text-white border-0"
         >
-          {product.category}
+          {product.category || 'Produto'}
         </Badge>
       </div>
       

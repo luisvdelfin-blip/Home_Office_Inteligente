@@ -27,15 +27,20 @@ export interface DatabaseProduct {
 class ApiService {
   private async fetchWithErrorHandling<T>(url: string): Promise<T> {
     try {
+      console.log(`🔄 Fetching: ${API_BASE_URL}${url}`);
       const response = await fetch(`${API_BASE_URL}${url}`);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`❌ API Error ${response.status}:`, errorData);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorData.error || 'Unknown error'}`);
       }
       
-      return await response.json();
+      const data = await response.json();
+      console.log(`✅ Successfully fetched data from ${url}:`, data.length || 'N/A', 'items');
+      return data;
     } catch (error) {
-      console.error(`API Error for ${url}:`, error);
+      console.error(`💥 API Error for ${url}:`, error);
       throw error;
     }
   }
@@ -52,8 +57,12 @@ class ApiService {
     return this.fetchWithErrorHandling<DatabaseProduct[]>('/products');
   }
 
-  async healthCheck(): Promise<{ status: string; database: string }> {
-    return this.fetchWithErrorHandling<{ status: string; database: string }>('/health');
+  async healthCheck(): Promise<{ status: string; database: string; records?: number }> {
+    return this.fetchWithErrorHandling<{ status: string; database: string; records?: number }>('/health');
+  }
+
+  async debug(): Promise<any> {
+    return this.fetchWithErrorHandling<any>('/debug');
   }
 }
 

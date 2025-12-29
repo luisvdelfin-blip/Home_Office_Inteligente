@@ -7,32 +7,41 @@ export const usePosts = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const data = await apiService.getPosts();
-        setPosts(data);
-      } catch (err) {
-        console.error('Failed to fetch posts:', err);
-        setError('Failed to load posts');
-        
-        // Fallback to mock data in development
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Using mock data as fallback');
-          setPosts(mockPosts as DatabasePost[]);
-        }
-      } finally {
-        setLoading(false);
+  const fetchPosts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔄 Starting to fetch posts...');
+      
+      // First check health
+      const health = await apiService.healthCheck();
+      console.log('🏥 Health check:', health);
+      
+      // Then fetch posts
+      const data = await apiService.getPosts();
+      console.log('📝 Posts received:', data);
+      
+      setPosts(data);
+    } catch (err) {
+      console.error('💥 Failed to fetch posts:', err);
+      setError(`Failed to load posts: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      
+      // Fallback to mock data in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 Using mock posts as fallback');
+        setPosts(mockPosts as DatabasePost[]);
       }
-    };
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchPosts();
   }, []);
 
-  return { posts, loading, error, refetch: () => fetchPosts() };
+  return { posts, loading, error, refetch: fetchPosts };
 };
 
 export const usePost = (slug: string) => {
@@ -46,16 +55,20 @@ export const usePost = (slug: string) => {
         setLoading(true);
         setError(null);
         
+        console.log(`🔄 Fetching post with slug: ${slug}`);
         const data = await apiService.getPost(slug);
+        console.log('📄 Post received:', data);
+        
         setPost(data);
       } catch (err) {
-        console.error('Failed to fetch post:', err);
-        setError('Failed to load post');
+        console.error('💥 Failed to fetch post:', err);
+        setError(`Failed to load post: ${err instanceof Error ? err.message : 'Unknown error'}`);
         
         // Fallback to mock data in development
         if (process.env.NODE_ENV === 'development') {
           const mockPost = mockPosts.find(p => p.slug === slug);
           if (mockPost) {
+            console.log('🔄 Using mock post as fallback');
             setPost(mockPost as DatabasePost);
           }
         }
