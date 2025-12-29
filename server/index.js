@@ -46,7 +46,7 @@ app.post('/api/receive-post', authenticateApiKey, async (req, res) => {
     console.log(`📝 Received post: ${title}`);
     
     // Save to local database
-    const result = dbOperations.upsertPost({
+    const result = await dbOperations.upsertPost({
       id,
       title,
       content,
@@ -75,7 +75,7 @@ app.post('/api/receive-post', authenticateApiKey, async (req, res) => {
 // Get all posts
 app.get('/api/posts', async (req, res) => {
   try {
-    const posts = dbOperations.getAllPosts();
+    const posts = await dbOperations.getAllPosts();
     console.log(`📝 Fetched ${posts.length} posts from local database`);
     res.json(posts);
   } catch (error) {
@@ -88,7 +88,7 @@ app.get('/api/posts', async (req, res) => {
 app.get('/api/posts/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
-    const post = dbOperations.getPostBySlug(slug);
+    const post = await dbOperations.getPostBySlug(slug);
 
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
@@ -105,7 +105,7 @@ app.get('/api/posts/:slug', async (req, res) => {
 // Get all products
 app.get('/api/products', async (req, res) => {
   try {
-    const products = dbOperations.getAllProducts();
+    const products = await dbOperations.getAllProducts();
     console.log(`📦 Fetched ${products.length} products from local database`);
     res.json(products);
   } catch (error) {
@@ -117,7 +117,7 @@ app.get('/api/products', async (req, res) => {
 // Health check
 app.get('/api/health', async (req, res) => {
   try {
-    const stats = dbOperations.getStats();
+    const stats = await dbOperations.getStats();
     res.json({ 
       status: 'healthy', 
       database: 'local-sqlite',
@@ -135,15 +135,15 @@ app.get('/api/health', async (req, res) => {
 // Debug endpoint
 app.get('/api/debug', async (req, res) => {
   try {
-    const posts = dbOperations.getAllPosts().slice(0, 5);
-    const products = dbOperations.getAllProducts().slice(0, 5);
-    const stats = dbOperations.getStats();
+    const posts = await dbOperations.getAllPosts();
+    const products = await dbOperations.getAllProducts();
+    const stats = await dbOperations.getStats();
     
     res.json({
       message: 'Local database debug info',
       stats,
-      sample_posts: posts,
-      sample_products: products,
+      sample_posts: posts.slice(0, 5),
+      sample_products: products.slice(0, 5),
       api_key_configured: !!process.env.WEBHOOK_API_KEY
     });
   } catch (error) {
