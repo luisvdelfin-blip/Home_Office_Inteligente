@@ -34,7 +34,7 @@ if (process.env.DATABASE_URL) {
     host: process.env.DB_HOST || '82.29.60.57',
     user: process.env.DB_USER || 'mysql',
     password: process.env.DB_PASSWORD || 'FdUvWfWC5pdSBx6r51fbcO5NfHoVTU1RLJTwS4K4dw32XPh7UEEys1vaskQ6SZHy',
-    database: process.env.DB_NAME || 'phiai_afiliados',
+    database: process.env.DB_NAME || 'default',
     port: process.env.DB_PORT || 3306,
     waitForConnections: true,
     connectionLimit: 10,
